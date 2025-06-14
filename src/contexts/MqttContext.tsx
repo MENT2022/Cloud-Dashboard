@@ -7,7 +7,6 @@ export type MqttConnectionStatus = "disconnected" | "connecting" | "connected" |
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { ConnectFormValues } from "@/components/mqtt-connect-form";
 
 const MAX_DATA_POINTS = 200;
 const TFT_REQUEST_TOPIC = "/TFT/Request"; 
@@ -133,7 +132,7 @@ interface MqttContextType {
   tftNamesMap: Record<string, TftNamesInfo>;
   deviceStatusMap: Record<string, DeviceStatus>;
   deviceEpdInfoMap: Record<string, DeviceEpdInfo>;
-  connectMqtt: (values: ConnectFormValues) => Promise<void>;
+  connectMqtt: (options?: { silent?: boolean }) => Promise<void>;
   disconnectMqtt: () => void;
   requestDeviceMaxValues: (deviceSerial: string) => void;
   requestDeviceMinValues: (deviceSerial: string) => void;
@@ -163,7 +162,15 @@ export const MqttProvider = ({ children }: { children: ReactNode }) => {
   const mqttModuleRef = useRef<typeof import('mqtt') | null>(null);
   const connectionStatusRef = useRef(connectionStatus);
   const isManuallyDisconnectingRef = useRef<boolean>(false);
-  const dataPollingIntervalRef = useRef<NodeJS.Timeout | null>(null); 
+  const dataPollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const autoConnectAttemptedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (!autoConnectAttemptedRef.current) {
+      autoConnectAttemptedRef.current = true;
+      connectMqtt({ silent: true });
+    }
+  }, []); 
 
   useEffect(() => {
     connectionStatusRef.current = connectionStatus;
@@ -210,7 +217,17 @@ export const MqttProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [mqttClient, clearDataPollingInterval]);
 
-  const connectMqtt = useCallback(async ({ brokerUrl, username, password }: ConnectFormValues) => {
+  const connectMqtt = useCallback(async (options?: { silent?: boolean }) => {
+    const brokerUrl = process.env.NEXT_PUBLIC_MQTT_BROKER_URL;
+    const username = process.env.NEXT_PUBLIC_MQTT_USERNAME;
+    const password = process.env.NEXT_PUBLIC_MQTT_PASSWORD;
+
+    if (!brokerUrl || !username || !password) {
+      const error = "Missing MQTT configuration. Please check environment variables.";
+      console.error(error);
+      toast({ title: "Configuration Error", description: error, variant: "destructive" });
+      return;
+    }
     if (!mqttModuleRef.current) {
       toast({ title: "MQTT Error", description: "MQTT library not loaded yet. Please wait and try again.", variant: "destructive" });
       return;
@@ -240,10 +257,7 @@ export const MqttProvider = ({ children }: { children: ReactNode }) => {
     setDeviceEpdInfoMap({});
     isManuallyDisconnectingRef.current = false;
 
-    console.log(`[MQTT Context] Attempting to connect with:
-    Broker URL: ${brokerUrl}
-    Username: ${username || "(none)"}
-    Password Provided: ${password ? "Yes" : "No"}`);
+    console.log(`[MQTT Context] Attempting to connect to MQTT broker: ${brokerUrl}`);
 
     const connectOptions: IClientOptions = {
       keepalive: 60,
