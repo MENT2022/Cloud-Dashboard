@@ -29,7 +29,7 @@ export function MqttConnectForm({
         <div className="text-center mb-1">
           <span className="text-xs text-muted-foreground">Cloud Dashboard</span>
         </div>
-        <CardTitle className="text-2xl text-center">MQTT Control</CardTitle>
+        <CardTitle className="text-2xl text-center">Cloud Control</CardTitle>
         <CardDescription className="text-center">
           Connect to the predefined MQTT broker.
         </CardDescription>
